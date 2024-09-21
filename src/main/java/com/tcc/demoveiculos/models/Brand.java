@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Data
 @Table(name = "brand")
@@ -22,4 +25,7 @@ public class Brand {
 
     @Enumerated(EnumType.ORDINAL)
     private VehicleType vehicleType;
+
+    @OneToMany(mappedBy = "brand", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    private List<Model> models = new ArrayList<>();
 }
