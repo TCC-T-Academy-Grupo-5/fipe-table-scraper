@@ -19,4 +19,7 @@ public class Brand {
 
     @NotBlank
     private String name;
+
+    @Enumerated(EnumType.ORDINAL)
+    private VehicleType vehicleType;
 }
