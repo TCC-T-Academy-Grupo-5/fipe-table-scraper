@@ -17,11 +17,9 @@ public class Brand {
     private String id;
 
     @NotBlank
-    @Column(unique = true)
-    private String code;
-
-    @NotBlank
     private String name;
+
+    private String urlPathName;
 
     @Enumerated(EnumType.ORDINAL)
     private VehicleType vehicleType;

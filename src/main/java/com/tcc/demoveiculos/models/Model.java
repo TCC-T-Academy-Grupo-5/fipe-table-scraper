@@ -2,6 +2,7 @@ package com.tcc.demoveiculos.models;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Entity
@@ -14,11 +15,9 @@ public class Model {
     private String id;
 
     @NotBlank
-    @Column(unique = true)
-    private String code;
-
-    @NotBlank
     private String name;
+
+    private String urlPathName;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "brand_id")
