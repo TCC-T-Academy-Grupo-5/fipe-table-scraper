@@ -1,11 +1,9 @@
 package com.tcc.demoveiculos.system;
 
-import com.tcc.demoveiculos.models.Brand;
-import com.tcc.demoveiculos.models.Model;
-import com.tcc.demoveiculos.models.VehicleType;
+import com.tcc.demoveiculos.models.*;
 import com.tcc.demoveiculos.repositories.BrandRepository;
 import com.tcc.demoveiculos.repositories.ModelRepository;
-import jakarta.transaction.Transactional;
+import com.tcc.demoveiculos.services.VehicleYearScrapingService;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -30,14 +28,17 @@ public class ScrapingTest implements CommandLineRunner {
     @Autowired
     private ModelRepository modelRepository;
 
+    @Autowired
+    private VehicleYearScrapingService vehicleYearScrapingService;
+
     @Value("${fipe-table.website.baseurl}")
     private String baseUrl;
 
     @Value("${fipe-table.website.useragent}")
     private String userAgent;
 
+
     @Override
-    @Transactional
     public void run(String... args) throws Exception {
         if (this.brandRepository.count() == 0) {
             this.loadBrandsByVehicleType("/carros", VehicleType.CAR);
@@ -50,6 +51,10 @@ public class ScrapingTest implements CommandLineRunner {
             this.loadModelsByVehicleType("/motos", VehicleType.MOTORCYCLE);
             this.loadModelsByVehicleType("/caminhoes", VehicleType.TRUCK);
         }
+
+        this.loadYearsByVehicleType("/carros", VehicleType.CAR);
+        this.loadYearsByVehicleType("/motos", VehicleType.MOTORCYCLE);
+        this.loadYearsByVehicleType("/caminhoes", VehicleType.TRUCK);
     }
 
     private void loadBrandsByVehicleType(String uri, VehicleType vehicleType) throws IOException {
@@ -116,6 +121,17 @@ public class ScrapingTest implements CommandLineRunner {
 
             this.modelRepository.saveAll(models);
             log.info("All {} of the brand {} added to the database", vehicleType.getDescription(), brand.getName());
+        });
+    }
+
+    private void loadYearsByVehicleType(String uri, VehicleType vehicleType) throws IOException {
+        List<Model> models = this.modelRepository.findAllByBrand_VehicleType(vehicleType);
+
+        models.forEach(model -> {
+            if (!model.getYears().isEmpty()) {
+                return;
+            }
+            this.vehicleYearScrapingService.processModelYears(model, this.baseUrl, this.userAgent, uri);
         });
     }
 }
