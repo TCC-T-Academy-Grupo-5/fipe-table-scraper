@@ -153,7 +153,7 @@ public class ApiTest implements CommandLineRunner {
 
         brands.forEach(brand -> {
             this.webClient.get()
-                    .uri("/" + typeStr + "/brands/" + brand.getCode() + "/models")
+                    .uri("/" + typeStr + "/brands/" + brand.getUrlPathName() + "/models")
                     .header("X-Subscription-Token", this.subscriptionToken)
                     .retrieve()
                     .bodyToMono(String.class)
