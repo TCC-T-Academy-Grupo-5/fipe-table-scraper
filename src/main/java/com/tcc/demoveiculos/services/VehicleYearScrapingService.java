@@ -1,8 +1,8 @@
 package com.tcc.demoveiculos.services;
 
-import com.tcc.demoveiculos.models.Model;
-import com.tcc.demoveiculos.models.Vehicle;
-import com.tcc.demoveiculos.models.Year;
+import com.tcc.demoveiculos.models.*;
+import com.tcc.demoveiculos.repositories.FipeMonthReferenceRepository;
+import com.tcc.demoveiculos.repositories.FipePriceRepository;
 import com.tcc.demoveiculos.repositories.VehicleRepository;
 import com.tcc.demoveiculos.repositories.YearRepository;
 import jakarta.transaction.Transactional;
@@ -28,6 +28,12 @@ public class VehicleYearScrapingService {
     @Autowired
     private VehicleRepository vehicleRepository;
 
+    @Autowired
+    private FipePriceRepository fipePriceRepository;
+
+    @Autowired
+    private FipeMonthReferenceRepository fipeMonthReferenceRepository;
+
     @Transactional
     public void processModelYears(Model model, String baseUrl, String userAgent, String uri) {
         try {
@@ -38,6 +44,7 @@ public class VehicleYearScrapingService {
 
         List<Year> yearsToSave = new ArrayList<>();
         List<Vehicle> vehiclesToSave = new ArrayList<>();
+        List<FipePrice> pricesToSave = new ArrayList<>();
 
         String completeUrl = baseUrl + uri + "/" + model.getBrand().getUrlPathName() + "/" + model.getUrlPathName();
 
@@ -63,16 +70,44 @@ public class VehicleYearScrapingService {
                     yearsToSave.add(year);
 
                     String fipeCode = document.select("div.DIVdetail > p:nth-child(2) > b > a").text();
+
                     Vehicle vehicle = new Vehicle();
+
                     vehicle.setYear(year);
                     vehicle.setFipeCode(fipeCode);
+
+                    vehicle.setFipePrices(new ArrayList<>());
+
                     vehiclesToSave.add(vehicle);
+                });
+
+                Elements priceRows = document.select("tbody tr:not(.fipeTableHead)");
+
+                priceRows.forEach(row -> {
+                    String price = row.select("td:nth-child(2)").text();
+                    FipePrice fipePrice = new FipePrice();
+
+                    String monthText = document.select("div.DIVdetail > p:nth-child(6)").text();
+                    String monthReference = monthText.split(": ")[1];
+
+                    FipeMonthReference monthReferenceToSave = new FipeMonthReference();
+                    monthReferenceToSave.setMonth(monthReference);
+
+                    fipePrice.setFipeMonthReference(monthReferenceToSave);
+                    fipePrice.setPrice(price);
+
+                    pricesToSave.add(fipePrice);
+                    fipeMonthReferenceRepository.save(monthReferenceToSave);
                 });
 
                 log.info("Saving {} years", model.getName());
                 log.info("Saving {} vehicles", model.getName());
+
+                List<FipePrice> finalPricesToSave = setVehiclesIntoPrices(vehiclesToSave, pricesToSave);
+
                 yearRepository.saveAll(yearsToSave);
                 vehicleRepository.saveAll(vehiclesToSave);
+                fipePriceRepository.saveAll(finalPricesToSave);
 
                 break;
             } catch (IOException e) {
@@ -91,5 +126,13 @@ public class VehicleYearScrapingService {
             }
 
         }
+    }
+
+    private List<FipePrice> setVehiclesIntoPrices(List<Vehicle> vehicles, List<FipePrice> fipePrices) {
+        for (int i = 0; i < fipePrices.size(); i++) {
+            FipePrice p = fipePrices.get(i);
+            p.setVehicle(vehicles.get(i));
+        }
+        return fipePrices;
     }
 }
