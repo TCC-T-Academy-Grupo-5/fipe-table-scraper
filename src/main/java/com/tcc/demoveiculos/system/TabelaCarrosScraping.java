@@ -3,11 +3,12 @@ package com.tcc.demoveiculos.system;
 import com.tcc.demoveiculos.modelsv3.BrandV3;
 import com.tcc.demoveiculos.modelsv3.ModelV3;
 import com.tcc.demoveiculos.modelsv3.VehicleTypeV3;
+import com.tcc.demoveiculos.modelsv3.YearV3;
 import com.tcc.demoveiculos.repositoriesv3.BrandRepositoryV3;
 import com.tcc.demoveiculos.repositoriesv3.ModelRepositoryV3;
+import com.tcc.demoveiculos.repositoriesv3.YearRepositoryV3;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,9 @@ public class TabelaCarrosScraping implements CommandLineRunner {
     @Autowired
     private ModelRepositoryV3 modelRepository;
 
+    @Autowired
+    private YearRepositoryV3 yearRepository;
+
     @Value("${fipe-table.website.baseurl}")
     private String baseUrl;
 
@@ -49,6 +53,12 @@ public class TabelaCarrosScraping implements CommandLineRunner {
             this.loadModelsByVehicleType("/carros", VehicleTypeV3.CAR);
             this.loadModelsByVehicleType("/motos", VehicleTypeV3.MOTORCYCLE);
             this.loadModelsByVehicleType("/caminhoes", VehicleTypeV3.TRUCK);
+        }
+
+        if (this.yearRepository.count() == 0) {
+            this.loadYearsByVehicleType("/anos_modelos/carros", VehicleTypeV3.CAR);
+            this.loadYearsByVehicleType("/anos_modelos/motos", VehicleTypeV3.MOTORCYCLE);
+            this.loadYearsByVehicleType("/anos_modelos/caminhoes", VehicleTypeV3.TRUCK);
         }
     }
 
@@ -143,5 +153,68 @@ public class TabelaCarrosScraping implements CommandLineRunner {
 
         this.modelRepository.saveAll(models);
         log.info("A total of {} {} models have been added to the database", models.size(), vehicleType);
+    }
+
+    private void loadYearsByVehicleType(String path, VehicleTypeV3 vehicleType) throws IOException {
+        List<ModelV3> models = this.modelRepository.findAllByBrand_VehicleType(vehicleType);
+        List<YearV3> years = new ArrayList<>();
+
+        models.forEach(model -> {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            int maxRetries = 3;
+            int attempt = 0;
+
+            while (attempt < maxRetries) {
+                String url = this.baseUrl + path + "/" + model.getBrand().getUrlPathName() + "/" + model.getUrlPathName();
+
+                try {
+                    Document document = Jsoup.connect(url)
+                            .userAgent(this.userAgent)
+                            .get();
+
+                    Elements links = document.getElementsByClass("link");
+
+                    links.forEach(link -> {
+                        YearV3 year = new YearV3();
+
+                        String yearName = link.select(".link_ano").text();
+
+                        String yearUrl = link.select(".botao_fake3").attr("href");
+                        String yearUrlName = yearUrl.substring(yearUrl.lastIndexOf("/") + 1);
+
+                        year.setName(yearName);
+                        year.setUrlPathName(yearUrlName);
+                        year.setModel(model);
+                        log.info("Adding year {} for {} {} to the database...", yearName, model.getBrand().getName(), model.getName());
+                        years.add(year);
+                    });
+
+
+                    log.info("Finished preloading years for {} {}", model.getBrand().getName(), model.getName());
+                    break;
+                } catch (IOException e) {
+                    attempt++;
+                    log.error("Attempt {} failed to retrieve years for model {}: {}", attempt, model.getName(), e.getMessage());
+                    if (attempt >= maxRetries) {
+                        throw new RuntimeException("Failed to retrieve years for model " + model.getName() + " after " + maxRetries + " retries");
+                    }
+
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Thread was interrupted", ie);
+                    }
+                }
+            }
+        });
+
+        this.yearRepository.saveAll(years);
+        log.info("A total of {} years have been added to the database", years.size());
     }
 }
