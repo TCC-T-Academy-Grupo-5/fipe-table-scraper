@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -26,6 +28,9 @@ public class BrandV3 {
 
     @Enumerated(EnumType.ORDINAL)
     private VehicleTypeV3 vehicleType;
+
+    @OneToMany(mappedBy = "brand", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<ModelV3> models = new ArrayList<>();
 
     @Override
     public String toString() {
