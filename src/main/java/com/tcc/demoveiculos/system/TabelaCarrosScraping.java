@@ -15,9 +15,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
+import java.io.*;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class TabelaCarrosScraping implements CommandLineRunner {
@@ -62,9 +65,11 @@ public class TabelaCarrosScraping implements CommandLineRunner {
             this.loadYearsByVehicleType("/anos_modelos/caminhoes", VehicleTypeV3.TRUCK);
         }
 
-//        this.loadVersionsByVehicleType("/modelo/carros", VehicleTypeV3.CAR);
-        this.loadVersionsByVehicleType("/modelo/motos", VehicleTypeV3.MOTORCYCLE);
-        this.loadVersionsByVehicleType("/modelo/caminhoes", VehicleTypeV3.MOTORCYCLE);
+        if (this.versionRepository.count() == 0) {
+            this.loadVersionsByVehicleType("/modelo/carros", VehicleTypeV3.CAR, List.of(), false);
+            this.loadVersionsByVehicleType("/modelo/motos", VehicleTypeV3.MOTORCYCLE, List.of(), false);
+            this.loadVersionsByVehicleType("/modelo/caminhoes", VehicleTypeV3.TRUCK, List.of(), false);
+        }
     }
 
     private void loadBrandsByVehicleType(String path, VehicleTypeV3 vehicleType) throws IOException {
@@ -94,7 +99,9 @@ public class TabelaCarrosScraping implements CommandLineRunner {
 
     private void loadModelsByVehicleType(String path, VehicleTypeV3 vehicleType) throws IOException {
         List<BrandV3> brands = this.brandRepository.findAllByVehicleType(vehicleType);
-        List<ModelV3> models = new ArrayList<>();
+
+        AtomicInteger totalModelsSaved = new AtomicInteger();
+        String errorsFilePath = "src/main/resources/error_load_models_brand_ids" + Instant.now().toString().replace(":", "-") + ".txt";
 
         brands.forEach(brand -> {
             try {
@@ -119,22 +126,22 @@ public class TabelaCarrosScraping implements CommandLineRunner {
                     modelLinks.forEach(modelLink -> {
                         ModelV3 model = new ModelV3();
 
-                        String modelName = modelLink.getElementsByClass("modelo_base2").text();
-                        String modelImageUrl = modelLink.getElementsByClass("img_modelo").attr("src");
+                        String modelName = modelLink.getElementsByClass("modelo_base2").text().trim();
+                        String modelImageUrl = modelLink.getElementsByClass("img_modelo").attr("src").trim();
 
-                        String modelUrl = modelLink.getElementsByTag("a").attr("href");
-                        String modelUrlName = modelUrl.substring(modelUrl.lastIndexOf("/") + 1);
+                        String modelUrl = modelLink.getElementsByTag("a").attr("href").trim();
+                        String modelUrlName = modelUrl.substring(modelUrl.lastIndexOf("/") + 1).trim();
 
                         model.setName(modelName);
                         model.setImageUrl(modelImageUrl);
                         model.setUrlPathName(modelUrlName);
                         model.setBrand(brand);
                         log.info("Adding model {} to the database...", modelName);
-                        models.add(model);
+                        this.modelRepository.save(model);
                     });
 
                     log.info("Updating brand {} image url...", brand.getName());
-                    log.info("Finished preloading models for brand {}", brand.getName());
+                    log.info("Finished saving models for brand {}", brand.getName());
                     this.brandRepository.save(brand);
 
                     break;
@@ -142,7 +149,8 @@ public class TabelaCarrosScraping implements CommandLineRunner {
                     attempt++;
                     log.error("Attempt {} failed to retrieve models for brand {}: {}", attempt, brand.getName(), e.getMessage());
                     if (attempt >= maxRetries) {
-                        throw new RuntimeException("Failed to retrieve models for brand " + brand.getName() + " after " + maxRetries + " retries");
+                        this.saveErrorIdsToFile(brand.getId().toString(), errorsFilePath);
+                        log.error("Failed to retrieve models for brand {} after {} retries. ID saved to error log.", brand.getName(), maxRetries);
                     }
 
                     try {
@@ -156,13 +164,14 @@ public class TabelaCarrosScraping implements CommandLineRunner {
 
         });
 
-        this.modelRepository.saveAll(models);
-        log.info("A total of {} {} models have been added to the database", models.size(), vehicleType);
+        log.info("A total of {} {} models have been added to the database", totalModelsSaved, vehicleType);
     }
 
     private void loadYearsByVehicleType(String path, VehicleTypeV3 vehicleType) throws IOException {
         List<ModelV3> models = this.modelRepository.findAllByBrand_VehicleType(vehicleType);
-        List<YearV3> years = new ArrayList<>();
+
+        AtomicInteger totalYearsSaved = new AtomicInteger();
+        String errorsFilePath = "src/main/resources/error_load_years_model_ids" + Instant.now().toString().replace(":", "-") + ".txt";
 
         models.forEach(model -> {
             try {
@@ -187,26 +196,27 @@ public class TabelaCarrosScraping implements CommandLineRunner {
                     links.forEach(link -> {
                         YearV3 year = new YearV3();
 
-                        String yearName = link.select(".link_ano").text();
+                        String yearName = link.select(".link_ano").text().trim();
 
-                        String yearUrl = link.select(".botao_fake3").attr("href");
-                        String yearUrlName = yearUrl.substring(yearUrl.lastIndexOf("/") + 1);
+                        String yearUrl = link.select(".botao_fake3").attr("href").trim();
+                        String yearUrlName = yearUrl.substring(yearUrl.lastIndexOf("/") + 1).trim();
 
                         year.setName(yearName);
                         year.setUrlPathName(yearUrlName);
                         year.setModel(model);
                         log.info("Adding year {} for {} {} to the database...", yearName, model.getBrand().getName(), model.getName());
-                        years.add(year);
+                        this.yearRepository.save(year);
                     });
 
 
-                    log.info("Finished preloading years for {} {}", model.getBrand().getName(), model.getName());
+                    log.info("Finished saving years for {} {}", model.getBrand().getName(), model.getName());
                     break;
                 } catch (IOException e) {
                     attempt++;
                     log.error("Attempt {} failed to retrieve years for model {}: {}", attempt, model.getName(), e.getMessage());
                     if (attempt >= maxRetries) {
-                        throw new RuntimeException("Failed to retrieve years for model " + model.getName() + " after " + maxRetries + " retries");
+                        this.saveErrorIdsToFile(model.getId().toString(), errorsFilePath);
+                        log.error("Failed to retrieve years for model {} after {} retries. ID saved to error log.", model.getName(), maxRetries);
                     }
 
                     try {
@@ -219,13 +229,14 @@ public class TabelaCarrosScraping implements CommandLineRunner {
             }
         });
 
-        this.yearRepository.saveAll(years);
-        log.info("A total of {} years have been added to the database", years.size());
+        log.info("A total of {} years have been added to the database", totalYearsSaved);
     }
 
     private void loadVersionsByVehicleType(String path, VehicleTypeV3 vehicleType) throws IOException {
         List<YearV3> years = this.yearRepository.findByModel_Brand_VehicleType(vehicleType);
-        List<Version> versions = new ArrayList<>();
+
+        AtomicInteger totalVersionsSaved = new AtomicInteger();
+        String errorsFilePath = "src/main/resources/error_load_versions_year_ids" + Instant.now().toString().replace(":", "-") + ".txt";
 
         years.forEach(year -> {
             String brandName = year.getModel().getBrand().getName();
@@ -257,12 +268,12 @@ public class TabelaCarrosScraping implements CommandLineRunner {
                     links.forEach(link -> {
                         Version version = new Version();
 
-                        String fullUrl = link.select("tr").attr("data-url");
+                        String fullUrl = link.select("tr").attr("data-url").trim();
                         String[] urlParts = fullUrl.split("/");
-                        String versionUrlPathName = urlParts[urlParts.length - 2];
+                        String versionUrlPathName = urlParts[urlParts.length - 2].trim();
 
-                        String fipeCode = link.select(".codigo_fipe").text();
-                        String versionName = link.select(".link_ano").text();
+                        String fipeCode = link.select(".codigo_fipe").text().trim();
+                        String versionName = link.select(".link_ano").text().trim();
 
                         version.setName(versionName);
                         version.setFipeCode(fipeCode);
@@ -270,7 +281,8 @@ public class TabelaCarrosScraping implements CommandLineRunner {
                         version.setFullUrl(fullUrl);
                         version.setYear(year);
                         log.info("Adding version {} for {} {} {} to the database...", versionName, brandName, modelName, yearName);
-                        versions.add(version);
+                        totalVersionsSaved.getAndIncrement();
+                        this.versionRepository.save(version);
                     });
 
                     break;
@@ -278,7 +290,8 @@ public class TabelaCarrosScraping implements CommandLineRunner {
                     attempt++;
                     log.error("Attempt {} failed to retrieve versions for {} {} {}: {}", attempt, brandName, modelName, yearName, e.getMessage());
                     if (attempt >= maxRetries) {
-                        throw new RuntimeException("Failed to retrieve versions for " + brandName + " " + modelName + " " + yearName + " after " + maxRetries + " retries");
+                        this.saveErrorIdsToFile(year.getId().toString(), errorsFilePath);
+                        log.error("Failed to retrieve versions for {} {} {} after {} retries. ID saved to error log.", brandName, modelName, yearName, maxRetries);
                     }
 
                     try {
@@ -291,7 +304,53 @@ public class TabelaCarrosScraping implements CommandLineRunner {
             }
         });
 
-        this.versionRepository.saveAll(versions);
-        log.info("A total of {} versions have been added to the database", versions.size());
+        log.info("A total of {} versions have been added to the database", totalVersionsSaved.get());
+    }
+
+    private void saveErrorIdsToFile(String id, String filePath) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true))) {
+            writer.write(id);
+            writer.newLine();
+        } catch (IOException e) {
+            log.error("Failed to save error id {} to file {}", id, e.getMessage());
+        }
+    }
+
+    private void retryFailedVersionScraping(String path) throws IOException {
+        List<UUID> ids = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                ids.add(UUID.fromString(line));
+            }
+
+        } catch (IOException e) {
+            log.error("Failed to read file {}", path);
+        }
+
+        List<YearV3> years = this.yearRepository.findAllById(ids);
+
+        List<YearV3> carYears = years.stream()
+                .filter(year -> year.getModel().getBrand().getVehicleType() == VehicleTypeV3.CAR)
+                .toList();
+
+        List<YearV3> motorcycleYears = years.stream()
+                .filter(year -> year.getModel().getBrand().getVehicleType() == VehicleTypeV3.MOTORCYCLE)
+                .toList();
+
+        List<YearV3> truckYears = years.stream()
+                .filter(year -> year.getModel().getBrand().getVehicleType() == VehicleTypeV3.TRUCK)
+                .toList();
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(path, false))) {
+
+        } catch (IOException e) {
+            log.error("Failed to clear the file {}", path);
+        }
+
+        this.loadVersionsByVehicleType("/modelo/carros", VehicleTypeV3.CAR, carYears, true);
+        this.loadVersionsByVehicleType("/modelo/motos", VehicleTypeV3.MOTORCYCLE, motorcycleYears, true);
+        this.loadVersionsByVehicleType("/modelo/caminhoes", VehicleTypeV3.TRUCK, truckYears, true);
     }
 }
