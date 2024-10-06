@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -23,6 +25,9 @@ public class YearV3 {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "model_id")
     private ModelV3 model;
+
+    @OneToMany(mappedBy = "year", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Version> versions = new ArrayList<>();
 
     @Override
     public String toString() {

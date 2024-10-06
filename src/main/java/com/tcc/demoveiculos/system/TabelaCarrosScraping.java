@@ -1,11 +1,9 @@
 package com.tcc.demoveiculos.system;
 
-import com.tcc.demoveiculos.modelsv3.BrandV3;
-import com.tcc.demoveiculos.modelsv3.ModelV3;
-import com.tcc.demoveiculos.modelsv3.VehicleTypeV3;
-import com.tcc.demoveiculos.modelsv3.YearV3;
+import com.tcc.demoveiculos.modelsv3.*;
 import com.tcc.demoveiculos.repositoriesv3.BrandRepositoryV3;
 import com.tcc.demoveiculos.repositoriesv3.ModelRepositoryV3;
+import com.tcc.demoveiculos.repositoriesv3.VersionRepository;
 import com.tcc.demoveiculos.repositoriesv3.YearRepositoryV3;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -35,6 +33,9 @@ public class TabelaCarrosScraping implements CommandLineRunner {
     @Autowired
     private YearRepositoryV3 yearRepository;
 
+    @Autowired
+    private VersionRepository versionRepository;
+
     @Value("${fipe-table.website.baseurl}")
     private String baseUrl;
 
@@ -60,6 +61,10 @@ public class TabelaCarrosScraping implements CommandLineRunner {
             this.loadYearsByVehicleType("/anos_modelos/motos", VehicleTypeV3.MOTORCYCLE);
             this.loadYearsByVehicleType("/anos_modelos/caminhoes", VehicleTypeV3.TRUCK);
         }
+
+//        this.loadVersionsByVehicleType("/modelo/carros", VehicleTypeV3.CAR);
+        this.loadVersionsByVehicleType("/modelo/motos", VehicleTypeV3.MOTORCYCLE);
+        this.loadVersionsByVehicleType("/modelo/caminhoes", VehicleTypeV3.MOTORCYCLE);
     }
 
     private void loadBrandsByVehicleType(String path, VehicleTypeV3 vehicleType) throws IOException {
@@ -216,5 +221,77 @@ public class TabelaCarrosScraping implements CommandLineRunner {
 
         this.yearRepository.saveAll(years);
         log.info("A total of {} years have been added to the database", years.size());
+    }
+
+    private void loadVersionsByVehicleType(String path, VehicleTypeV3 vehicleType) throws IOException {
+        List<YearV3> years = this.yearRepository.findByModel_Brand_VehicleType(vehicleType);
+        List<Version> versions = new ArrayList<>();
+
+        years.forEach(year -> {
+            String brandName = year.getModel().getBrand().getName();
+            String modelName = year.getModel().getName();
+            String yearName = year.getName();
+
+            String url = this.baseUrl + path + "/" +
+                    year.getModel().getBrand().getUrlPathName() + "/" +
+                    year.getModel().getUrlPathName() + "/" +
+                    year.getUrlPathName();
+
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            int maxRetries = 3;
+            int attempt = 0;
+
+            while (attempt < maxRetries) {
+                try {
+                    Document document = Jsoup.connect(url)
+                            .userAgent(this.userAgent)
+                            .get();
+
+                    Elements links = document.getElementsByClass("link");
+
+                    links.forEach(link -> {
+                        Version version = new Version();
+
+                        String fullUrl = link.select("tr").attr("data-url");
+                        String[] urlParts = fullUrl.split("/");
+                        String versionUrlPathName = urlParts[urlParts.length - 2];
+
+                        String fipeCode = link.select(".codigo_fipe").text();
+                        String versionName = link.select(".link_ano").text();
+
+                        version.setName(versionName);
+                        version.setFipeCode(fipeCode);
+                        version.setUrlPathName(versionUrlPathName);
+                        version.setFullUrl(fullUrl);
+                        version.setYear(year);
+                        log.info("Adding version {} for {} {} {} to the database...", versionName, brandName, modelName, yearName);
+                        versions.add(version);
+                    });
+
+                    break;
+                } catch (IOException e) {
+                    attempt++;
+                    log.error("Attempt {} failed to retrieve versions for {} {} {}: {}", attempt, brandName, modelName, yearName, e.getMessage());
+                    if (attempt >= maxRetries) {
+                        throw new RuntimeException("Failed to retrieve versions for " + brandName + " " + modelName + " " + yearName + " after " + maxRetries + " retries");
+                    }
+
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Thread was interrupted", ie);
+                    }
+                }
+            }
+        });
+
+        this.versionRepository.saveAll(versions);
+        log.info("A total of {} versions have been added to the database", versions.size());
     }
 }
