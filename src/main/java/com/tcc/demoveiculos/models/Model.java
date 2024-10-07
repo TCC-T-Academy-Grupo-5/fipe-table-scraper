@@ -1,22 +1,22 @@
-package com.tcc.demoveiculos.modelsv3;
+package com.tcc.demoveiculos.models;
 
+import com.tcc.demoveiculos.models.dtos.ModelDTO;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Table(name = "model")
 @Getter
 @Setter
-public class ModelV3 {
+public class Model {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private String id;
 
     private String name;
 
@@ -26,13 +26,21 @@ public class ModelV3 {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "brand_id")
-    private BrandV3 brand;
+    private Brand brand;
 
     @OneToMany(mappedBy = "model", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<YearV3> years = new ArrayList<>();
+    private List<Year> years = new ArrayList<>();
 
     @Override
     public String toString() {
         return "Model: " + this.name;
+    }
+
+    public static ModelDTO mapToModelDTO(Model model) {
+        return new ModelDTO(model.getId(),
+                            model.getImageUrl(),
+                            model.getName(),
+                            model.getUrlPathName(),
+                            model.getBrand().getId());
     }
 }

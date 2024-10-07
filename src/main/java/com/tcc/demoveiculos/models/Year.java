@@ -1,5 +1,6 @@
-package com.tcc.demoveiculos.modelsv3;
+package com.tcc.demoveiculos.models;
 
+import com.tcc.demoveiculos.models.dtos.YearDTO;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -12,7 +13,7 @@ import java.util.UUID;
 @Table(name = "year")
 @Getter
 @Setter
-public class YearV3 {
+public class Year {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -24,7 +25,7 @@ public class YearV3 {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "model_id")
-    private ModelV3 model;
+    private Model model;
 
     @OneToMany(mappedBy = "year", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Version> versions = new ArrayList<>();
@@ -32,5 +33,9 @@ public class YearV3 {
     @Override
     public String toString() {
         return "Year: " + this.name;
+    }
+
+    public static YearDTO mapToYearDTO(Year year) {
+        return new YearDTO(year.getId(), year.getName(), year.getUrlPathName(), year.getModel().getId());
     }
 }

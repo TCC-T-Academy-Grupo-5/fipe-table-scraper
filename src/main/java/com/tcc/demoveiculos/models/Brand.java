@@ -1,5 +1,6 @@
-package com.tcc.demoveiculos.modelsv3;
+package com.tcc.demoveiculos.models;
 
+import com.tcc.demoveiculos.models.dtos.BrandDTO;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Table(name = "brand")
 @Getter
 @Setter
-public class BrandV3 {
+public class Brand {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -27,13 +28,21 @@ public class BrandV3 {
     private String imageUrl;
 
     @Enumerated(EnumType.ORDINAL)
-    private VehicleTypeV3 vehicleType;
+    private VehicleType vehicleType;
 
     @OneToMany(mappedBy = "brand", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<ModelV3> models = new ArrayList<>();
+    private List<Model> models = new ArrayList<>();
 
     @Override
     public String toString() {
         return "Brand: " + this.name;
+    }
+
+    public static BrandDTO mapToBrandDTO(Brand brand) {
+        return new BrandDTO(brand.getId(),
+                            brand.getName(),
+                            brand.getUrlPathName(),
+                            brand.getVehicleType().ordinal(),
+                            brand.getImageUrl());
     }
 }

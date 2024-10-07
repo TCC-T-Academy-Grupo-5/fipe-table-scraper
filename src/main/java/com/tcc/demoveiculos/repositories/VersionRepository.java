@@ -1,6 +1,6 @@
-package com.tcc.demoveiculos.repositoriesv3;
+package com.tcc.demoveiculos.repositories;
 
-import com.tcc.demoveiculos.modelsv3.Version;
+import com.tcc.demoveiculos.models.Version;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.UUID;
