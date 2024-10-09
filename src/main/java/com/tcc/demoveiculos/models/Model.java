@@ -24,6 +24,8 @@ public class Model {
 
     private String imageUrl;
 
+    private ModelCategory category;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "brand_id")
     private Brand brand;
