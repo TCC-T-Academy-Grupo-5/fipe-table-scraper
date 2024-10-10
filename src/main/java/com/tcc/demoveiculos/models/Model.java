@@ -24,6 +24,7 @@ public class Model {
 
     private String imageUrl;
 
+    @Enumerated(EnumType.ORDINAL)
     private ModelCategory category;
 
     @ManyToOne(fetch = FetchType.EAGER)

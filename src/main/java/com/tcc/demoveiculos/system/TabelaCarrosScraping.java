@@ -4,6 +4,7 @@ import com.tcc.demoveiculos.models.*;
 import com.tcc.demoveiculos.repositories.*;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,35 +89,37 @@ public class TabelaCarrosScraping implements CommandLineRunner {
             this.loadPrices();
         }
 
-        JsonExporter.export("src/main/resources/datav3/brands/",
-                            "brands",
-                            this.brandRepository.findAll(),
-                            1000,
-                            Brand::mapToBrandDTO);
+        this.loadCategories();
 
-        JsonExporter.export("src/main/resources/datav3/models/",
-                            "models",
-                            this.modelRepository.findAll(),
-                            1000,
-                            Model::mapToModelDTO);
-
-        JsonExporter.export("src/main/resources/datav3/years/",
-                            "years",
-                            this.yearRepository.findAll(),
-                            1400,
-                            Year::mapToYearDTO);
-
-        JsonExporter.export("src/main/resources/datav3/versions/",
-                            "versions",
-                            this.versionRepository.findAll(),
-                            700,
-                            Version::mapToVersionDTO);
-
-        JsonExporter.export("src/main/resources/datav3/fipeprices/",
-                            "fipeprices",
-                            this.fipePriceRepository.findAll(),
-                            1400,
-                            FipePrice::mapToFipePriceDTO);
+//        JsonExporter.export("src/main/resources/datav3/brands/",
+//                            "brands",
+//                            this.brandRepository.findAll(),
+//                            1000,
+//                            Brand::mapToBrandDTO);
+//
+//        JsonExporter.export("src/main/resources/datav3/models/",
+//                            "models",
+//                            this.modelRepository.findAll(),
+//                            1000,
+//                            Model::mapToModelDTO);
+//
+//        JsonExporter.export("src/main/resources/datav3/years/",
+//                            "years",
+//                            this.yearRepository.findAll(),
+//                            1400,
+//                            Year::mapToYearDTO);
+//
+//        JsonExporter.export("src/main/resources/datav3/versions/",
+//                            "versions",
+//                            this.versionRepository.findAll(),
+//                            700,
+//                            Version::mapToVersionDTO);
+//
+//        JsonExporter.export("src/main/resources/datav3/fipeprices/",
+//                            "fipeprices",
+//                            this.fipePriceRepository.findAll(),
+//                            1400,
+//                            FipePrice::mapToFipePriceDTO);
     }
 
     private void loadBrandsByVehicleType(String path, VehicleType vehicleType) throws IOException {
@@ -429,6 +432,40 @@ public class TabelaCarrosScraping implements CommandLineRunner {
         });
 
         log.info("A total of {} prices have been added to the database", totalPricesSaved.get());
+    }
+
+    private void loadCategories() {
+        List<String> modelIds = this.modelRepository.findAll().stream().map(Model::getId).toList();
+        List<Version> firstVehiclesForEachModel = this.versionRepository.findRandomVersionsByModelIds(modelIds);
+
+        firstVehiclesForEachModel.forEach(version -> {
+
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            int maxRetries = 3;
+            int attempt = 0;
+
+            while (attempt < maxRetries) {
+                try {
+                    Document document = Jsoup.connect(version.getFullUrl())
+                            .userAgent(this.userAgent)
+                            .get();
+
+                    Element categoryRow = document.select("tr:has(td:contains(Categoria))").first();
+
+                    if (categoryRow != null) {
+                        String categoryText = categoryRow.select("td").get(1).text();
+                        System.out.println(version.getYear().getModel().getName() + ": " + categoryText);
+                    }
+                } catch (IOException e) {
+
+                }
+            }
+        });
     }
 
     private void saveErrorIdsToFile(String id, String filePath) {
