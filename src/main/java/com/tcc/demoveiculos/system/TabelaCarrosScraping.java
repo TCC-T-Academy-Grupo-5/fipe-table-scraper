@@ -89,7 +89,7 @@ public class TabelaCarrosScraping implements CommandLineRunner {
             this.loadPrices();
         }
 
-        this.loadCategories();
+//        this.loadCategories();
 
 //        JsonExporter.export("src/main/resources/datav3/brands/",
 //                            "brands",
@@ -438,6 +438,8 @@ public class TabelaCarrosScraping implements CommandLineRunner {
         List<String> modelIds = this.modelRepository.findAll().stream().map(Model::getId).toList();
         List<Version> firstVehiclesForEachModel = this.versionRepository.findRandomVersionsByModelIds(modelIds);
 
+        String errorsFilePath = "src/main/resources/error_load_categories_model_ids" + Instant.now().toString().replace(":", "-") + ".txt";
+
         firstVehiclesForEachModel.forEach(version -> {
 
             try {
@@ -449,6 +451,9 @@ public class TabelaCarrosScraping implements CommandLineRunner {
             int maxRetries = 3;
             int attempt = 0;
 
+            String type = version.getYear().getModel().getBrand().getVehicleType().toString();
+            String modelName = version.getYear().getModel().getName();
+
             while (attempt < maxRetries) {
                 try {
                     Document document = Jsoup.connect(version.getFullUrl())
@@ -459,10 +464,34 @@ public class TabelaCarrosScraping implements CommandLineRunner {
 
                     if (categoryRow != null) {
                         String categoryText = categoryRow.select("td").get(1).text();
-                        System.out.println(version.getYear().getModel().getName() + ": " + categoryText);
-                    }
-                } catch (IOException e) {
 
+                        String category = categoryText.trim();
+
+                        String completeDescription = modelName + ", type: " + type + ", category: " + category;
+                        log.info(completeDescription);
+
+                        Model model = version.getYear().getModel();
+                        model.setCategoryString(categoryText);
+                        model.setCategory(ModelCategory.fromString(categoryText));
+                        this.modelRepository.save(model);
+                    }
+
+                    break;
+                } catch (IOException e) {
+                    attempt++;
+                    log.error("Attempt {} failed to retrieve category for {}: {}",
+                              attempt, modelName, e.getMessage());
+                    if (attempt >= maxRetries) {
+                        this.saveErrorIdsToFile(version.getYear().getModel().getId(), errorsFilePath);
+                        log.error("Failed to retrieve category for {} after {} retries. ID saved to error log.", modelName, maxRetries);
+                    }
+
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Thread was interrupted", ie);
+                    }
                 }
             }
         });

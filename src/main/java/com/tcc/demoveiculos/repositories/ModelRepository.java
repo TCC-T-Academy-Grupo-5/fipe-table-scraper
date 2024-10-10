@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface ModelRepository extends JpaRepository<Model, UUID> {
 
     List<Model> findAllByBrand_VehicleType(VehicleType vehicleType);
+
+    List<Model> findAllByCategoryStringIsNotNull();
 }

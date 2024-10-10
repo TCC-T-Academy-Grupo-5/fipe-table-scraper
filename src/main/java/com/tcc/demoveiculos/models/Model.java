@@ -24,8 +24,10 @@ public class Model {
 
     private String imageUrl;
 
-    @Enumerated(EnumType.ORDINAL)
+    @Enumerated(EnumType.STRING)
     private ModelCategory category;
+
+    private String categoryString;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "brand_id")
