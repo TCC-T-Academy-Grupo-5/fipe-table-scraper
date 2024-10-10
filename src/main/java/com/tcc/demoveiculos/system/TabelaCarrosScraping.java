@@ -87,39 +87,38 @@ public class TabelaCarrosScraping implements CommandLineRunner {
 
         if (this.fipePriceRepository.count() == 0) {
             this.loadPrices();
+            this.loadCategories();
         }
 
-//        this.loadCategories();
+        JsonExporter.export("src/main/resources/datav3/brands/",
+                            "brands",
+                            this.brandRepository.findAll(),
+                            1000,
+                            Brand::mapToBrandDTO);
 
-//        JsonExporter.export("src/main/resources/datav3/brands/",
-//                            "brands",
-//                            this.brandRepository.findAll(),
-//                            1000,
-//                            Brand::mapToBrandDTO);
-//
-//        JsonExporter.export("src/main/resources/datav3/models/",
-//                            "models",
-//                            this.modelRepository.findAll(),
-//                            1000,
-//                            Model::mapToModelDTO);
-//
-//        JsonExporter.export("src/main/resources/datav3/years/",
-//                            "years",
-//                            this.yearRepository.findAll(),
-//                            1400,
-//                            Year::mapToYearDTO);
-//
-//        JsonExporter.export("src/main/resources/datav3/versions/",
-//                            "versions",
-//                            this.versionRepository.findAll(),
-//                            700,
-//                            Version::mapToVersionDTO);
-//
-//        JsonExporter.export("src/main/resources/datav3/fipeprices/",
-//                            "fipeprices",
-//                            this.fipePriceRepository.findAll(),
-//                            1400,
-//                            FipePrice::mapToFipePriceDTO);
+        JsonExporter.export("src/main/resources/datav3/models/",
+                            "models",
+                            this.modelRepository.findAll(),
+                            800,
+                            Model::mapToModelDTO);
+
+        JsonExporter.export("src/main/resources/datav3/years/",
+                            "years",
+                            this.yearRepository.findAll(),
+                            1400,
+                            Year::mapToYearDTO);
+
+        JsonExporter.export("src/main/resources/datav3/versions/",
+                            "versions",
+                            this.versionRepository.findAll(),
+                            700,
+                            Version::mapToVersionDTO);
+
+        JsonExporter.export("src/main/resources/datav3/fipeprices/",
+                            "fipeprices",
+                            this.fipePriceRepository.findAll(),
+                            1400,
+                            FipePrice::mapToFipePriceDTO);
     }
 
     private void loadBrandsByVehicleType(String path, VehicleType vehicleType) throws IOException {

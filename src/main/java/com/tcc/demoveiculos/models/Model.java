@@ -46,6 +46,8 @@ public class Model {
                             model.getImageUrl(),
                             model.getName(),
                             model.getUrlPathName(),
+                            model.getCategory(),
+                            model.getCategoryString(),
                             model.getBrand().getId());
     }
 }
